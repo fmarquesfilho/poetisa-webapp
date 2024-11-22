@@ -1,97 +1,126 @@
 <script>
-  import * as Tone from "tone";
+  import { onMount } from "svelte";
 
   let bpm = 100;
   let beat = 0;
   const beatsPerMeasure = 4;
   const numberOfMeasures = 4;
   let isPlaying = false;
-
-  const synths = [
-    new Tone.Synth().toDestination(),
-    new Tone.Synth().toDestination(),
-    new Tone.Synth().toDestination(),
-    new Tone.Synth().toDestination(),
-  ];
+  // @ts-ignore
+  let sequencer;
+  // @ts-ignore
+  let loadedSounds = [];
 
   const scaleOfNotes = ["C4", "D4", "Eb4", "F4"];
-
   let instruments = [
-    Array.from({ length: beatsPerMeasure*numberOfMeasures }, (_, i) => ({ note: scaleOfNotes[3], active: false })),
-    Array.from({ length: beatsPerMeasure*numberOfMeasures }, (_, i) => ({ note: scaleOfNotes[2], active: false })),
-    Array.from({ length: beatsPerMeasure*numberOfMeasures }, (_, i) => ({ note: scaleOfNotes[1], active: false })),
-    Array.from({ length: beatsPerMeasure*numberOfMeasures }, (_, i) => ({ note: scaleOfNotes[0], active: false })),
+    Array.from({ length: beatsPerMeasure * numberOfMeasures }, () => ({ note: scaleOfNotes[3], active: false })),
+    Array.from({ length: beatsPerMeasure * numberOfMeasures }, () => ({ note: scaleOfNotes[2], active: false })),
+    Array.from({ length: beatsPerMeasure * numberOfMeasures }, () => ({ note: scaleOfNotes[1], active: false })),
+    Array.from({ length: beatsPerMeasure * numberOfMeasures }, () => ({ note: scaleOfNotes[0], active: false })),
   ];
 
-  Tone.Transport.scheduleRepeat((time) => {
-    instruments.forEach((instrument, index) => {
-      let synth = synths[index];
-      let note = instrument[beat];
-      if (note.active) synth.triggerAttackRelease(note.note, "16n", time);
-    });
-    beat = (beat + 1) % 16;
-  }, "16n");
+  // @ts-ignore
+  let playbackInterval;
+
+  // Load WASM and sounds on mount
+  onMount(async () => {
+    // @ts-ignore
+    const wasmModule = await import("$lib/pkg/poetisa_audio_engine.js");
+    const { default: init, Sequencer } = wasmModule;
+
+    // Initialize WASM
+    await init("/pkg/poetisa_audio_engine_bg.wasm");
+    sequencer = new Sequencer(bpm);
+
+    // Load sound files
+    const soundFiles = ["sound1.ogg", "sound2.ogg", "sound3.ogg", "sound4.ogg"];
+    for (let file of soundFiles) {
+      const response = await fetch(file);
+      const buffer = await response.arrayBuffer();
+      const index = await sequencer.load_sound(new Uint8Array(buffer));
+      loadedSounds.push(index);
+    }
+  });
 
   // @ts-ignore
   const handleNoteClick = (instIndex, noteIndex) => {
     instruments[instIndex][noteIndex].active = !instruments[instIndex][noteIndex].active;
   };
 
-  const handlePlayClick = () => {
-    if (!isPlaying) Tone.start();
-    Tone.Transport.bpm.value = bpm;
-    Tone.Transport.start();
+  const startPlayback = () => {
+    // @ts-ignore
+    if (!sequencer) return;
+
+    sequencer.start();
     isPlaying = true;
+
+    playbackInterval = setInterval(() => {
+      instruments.forEach((instrument, index) => {
+        if (instrument[beat].active) {
+          // @ts-ignore
+          sequencer.play_step(loadedSounds[index]);
+        }
+      });
+      beat = (beat + 1) % (beatsPerMeasure * numberOfMeasures);
+    }, (60000 / bpm) / beatsPerMeasure);
   };
 
-  const handleStopClick = () => {
-    Tone.Transport.stop();
+  const stopPlayback = () => {
+    // @ts-ignore
+    if (!sequencer) return;
+
+    sequencer.stop();
     isPlaying = false;
+    // @ts-ignore
+    clearInterval(playbackInterval);
   };
 
  // @ts-ignore
-   $: if (isPlaying) {
-    Tone.Transport.bpm.value = bpm;
-  }
+   $: if (sequencer && isPlaying) {
+    sequencer.clock_speed = bpm;
+  };
+
+  const handlePlayClick = () => {
+    if (isPlaying) {
+      stopPlayback();
+    } else {
+      startPlayback();
+    }
+  };
 </script>
 
 <div class="bpm-controls">
   <label for="bpm">{bpm} BPM</label>
   <input type="range" id="bpm" min="50" max="240" bind:value={bpm} />
-  {#if isPlaying}
-    <button on:click={handleStopClick}>Stop</button>
-  {:else}
-    <button on:click={handlePlayClick}>Play</button>
-  {/if}
+  <button on:click={handlePlayClick}>{isPlaying ? "Stop" : "Play"}</button>
 </div>
 
 <div class="sequencer">
-  <div class="sequencer sequencer__wrapper">
+  <div class="sequencer__wrapper">
     {#each Array(numberOfMeasures) as _, measureIndex}
-    <div class="sequencer sequencer__block">
-      {#each Array(instruments.length) as _, instrumentIndex}
-      <div class="sequencer sequencer__measure">
-          {#each Array(beatsPerMeasure) as _, beatIndex}
-          <div class="sequencer sequencer__beat">
-            {#if instrumentIndex === 0}
-              <div class="beat-indicator {(measureIndex*beatsPerMeasure)+beatIndex === beat ? 'live' : ''}"></div>
-            {/if}
-            <!-- svelte-ignore a11y_consider_explicit_label -->
-            <button 
-              on:click={() => handleNoteClick(instrumentIndex, (measureIndex*beatsPerMeasure)+beatIndex)}
-              class="note {instruments[instrumentIndex][(measureIndex*beatsPerMeasure)+beatIndex].active ? 'active' : ''} {beatIndex % 4 === 0 ? 'first-beat-of-the-bar' : ''}">
-            </button>
+      <div class="sequencer__block">
+        {#each Array(instruments.length) as _, instrumentIndex}
+          <div class="sequencer__measure">
+            {#each Array(beatsPerMeasure) as _, beatIndex}
+              <div class="sequencer__beat">
+                {#if instrumentIndex === 0}
+                  <div class="beat-indicator {(measureIndex * beatsPerMeasure) + beatIndex === beat ? 'live' : ''}"></div>
+                {/if}
+                <button 
+                  on:click={() => handleNoteClick(instrumentIndex, (measureIndex * beatsPerMeasure) + beatIndex)}
+                  class="note {instruments[instrumentIndex][(measureIndex * beatsPerMeasure) + beatIndex].active ? 'active' : ''} {beatIndex % 4 === 0 ? 'first-beat-of-the-bar' : ''}">
+                </button>
+              </div>
+            {/each}
           </div>
-          {/each}
+        {/each}
       </div>
-      {/each}
-    </div>
     {/each}
   </div>
 </div>
 
 <style>
-
+  /* Style remains unchanged */
   * {
     box-sizing: border-box;
   }
@@ -178,4 +207,3 @@
     background: #05f18f;
   }
 </style>
-
