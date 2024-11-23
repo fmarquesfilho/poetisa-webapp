@@ -33,7 +33,7 @@
     sequencer = new Sequencer(bpm);
 
     // Load sound files
-    const soundFiles = ["sound1.ogg", "sound2.ogg", "sound3.ogg", "sound4.ogg"];
+    const soundFiles = ["clap.ogg", "hihat.ogg", "kick.ogg", "snare.ogg"];
     for (let file of soundFiles) {
       const response = await fetch(file);
       const buffer = await response.arrayBuffer();
