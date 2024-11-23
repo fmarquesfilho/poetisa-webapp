@@ -9,7 +9,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      $lib: '/src/lib',  // This will create an alias for the src/lib folder
+      $lib: '/src/lib',   // This will create an alias for the src/lib folder
     },
   },
 })

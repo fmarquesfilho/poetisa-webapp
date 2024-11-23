@@ -1,5 +1,7 @@
 <script>
   import { onMount } from "svelte";
+  import init from "$lib/pkg/poetisa_audio_engine.js";  // Default import
+  import { Sequencer } from "$lib/pkg/poetisa_audio_engine.js";  // Named import for Sequencer
 
   let bpm = 100;
   let beat = 0;
@@ -24,21 +26,29 @@
 
   // Load WASM and sounds on mount
   onMount(async () => {
-    // @ts-ignore
-    const wasmModule = await import("$lib/pkg/poetisa_audio_engine.js");
-    const { default: init, Sequencer } = wasmModule;
+    try {
+      // Initialize WASM with the path as a string
+      await init("$lib/pkg/poetisa_audio_engine_bg.wasm");
 
-    // Initialize WASM
-    await init("/pkg/poetisa_audio_engine_bg.wasm");
-    sequencer = new Sequencer(bpm);
+    } catch (error) {
+      console.error("Error loading WASM ", error);
+    }
 
-    // Load sound files
-    const soundFiles = ["clap.ogg", "hihat.ogg", "kick.ogg", "snare.ogg"];
-    for (let file of soundFiles) {
-      const response = await fetch(file);
-      const buffer = await response.arrayBuffer();
-      const index = await sequencer.load_sound(new Uint8Array(buffer));
-      loadedSounds.push(index);
+    try {
+
+      // Sequencer should now be available
+      sequencer = new Sequencer(bpm);
+
+      // Load sound files
+      const soundFiles = ["/audio/clap.ogg", "/audio/hihat.ogg", "/audio/kick.ogg", "/audio/snare.ogg"];
+      for (let file of soundFiles) {
+        const response = await fetch(file);
+        const buffer = await response.arrayBuffer();
+        const index = await sequencer.load_sound(new Uint8Array(buffer));
+        loadedSounds.push(index);
+      }
+    } catch (error) {
+      console.error("Error loading sounds:", error);
     }
   });
 
@@ -75,6 +85,7 @@
     clearInterval(playbackInterval);
   };
 
+  // @ts-ignore
  // @ts-ignore
    $: if (sequencer && isPlaying) {
     sequencer.clock_speed = bpm;

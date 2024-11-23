@@ -13,8 +13,8 @@
     "emitDeclarationOnly": true,
     "declaration": true,
     "outDir": "./dist",
-    "sourceMap": true, // Enable TypeScript source maps
-    "inlineSources": true // Include original source code in the maps
+    "sourceMap": true, 
+    "inlineSources": true
   },
   "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte"],
   "references": [{ "path": "./tsconfig.node.json" }]
