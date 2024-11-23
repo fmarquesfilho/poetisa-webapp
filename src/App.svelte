@@ -106,6 +106,7 @@
                 {#if instrumentIndex === 0}
                   <div class="beat-indicator {(measureIndex * beatsPerMeasure) + beatIndex === beat ? 'live' : ''}"></div>
                 {/if}
+                <!-- svelte-ignore a11y_consider_explicit_label -->
                 <button 
                   on:click={() => handleNoteClick(instrumentIndex, (measureIndex * beatsPerMeasure) + beatIndex)}
                   class="note {instruments[instrumentIndex][(measureIndex * beatsPerMeasure) + beatIndex].active ? 'active' : ''} {beatIndex % 4 === 0 ? 'first-beat-of-the-bar' : ''}">
